@@ -41,7 +41,7 @@ run_policy(int policy)
 {
   uint64 ptrs[NPTRS];
   struct kmstat st;
-  int i, t0, t1;
+  int i;
 
   printf("\n=== Policy: %s ===\n", polname[policy]);
   kmpolicy(policy);

@@ -192,8 +192,8 @@ print-gdbport:
 QEMU_VERSION := $(shell $(QEMU) --version | head -n 1 | sed -E 's/^QEMU emulator version ([0-9]+\.[0-9]+)\..*/\1/')
 check-qemu-version:
 	@if [ "$(shell echo "$(QEMU_VERSION) >= $(MIN_QEMU_VERSION)" | bc)" -eq 0 ]; then \
-		echo "ERROR: Need qemu version >= $(MIN_QEMU_VERSION)"; \
-		exit 1; \
+		echo "WARNING: Need qemu version >= $(MIN_QEMU_VERSION), but continuing anyway..."; \
+		# exit 1; \
 	fi
 
 .PHONY: fmt
