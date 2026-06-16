@@ -331,6 +331,9 @@ kexit(int status)
   if (p == initproc)
     panic("init exiting");
 
+  // Reclaim any allocated kernel memory blocks for this process.
+  kmfree_all_proc(p->pid);
+
   // Close all open files.
   for (int fd = 0; fd < NOFILE; fd++) {
     if (p->ofile[fd]) {

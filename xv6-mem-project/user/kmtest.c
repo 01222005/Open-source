@@ -15,7 +15,7 @@
 #include "user/user.h"
 
 #define NPTRS 64
-#define NCYCLES 2000
+#define NCYCLES 50000
 
 static unsigned int rngstate;
 
@@ -87,11 +87,91 @@ run_policy(int policy)
   printstat("after cleanup", &st);
 }
 
+static void
+run_reclaim_test(void)
+{
+  struct kmstat st_before, st_during, st_after;
+  int pid;
+
+  printf("\n=== Test Process Memory Auto-Reclamation ===\n");
+
+  // Get initial stats
+  kmstat(&st_before);
+  printf("  [Before Fork] used_bytes=%d, used_blocks=%d\n", 
+         (int)st_before.used_bytes, (int)st_before.used_blocks);
+
+  pid = fork();
+  if (pid < 0) {
+    printf("  fork failed\n");
+    exit(1);
+  }
+
+  if (pid == 0) {
+    // Child process: allocate but do not free!
+    printf("  [Child %d] Allocating memory blocks...\n", getpid());
+    uint64 p1 = kmalloc(256);
+    uint64 p2 = kmalloc(512);
+    uint64 p3 = kmalloc(1024);
+    
+    if (p1 == 0 || p2 == 0 || p3 == 0) {
+      printf("  [Child] Allocation failed!\n");
+      exit(1);
+    }
+    
+    kmstat(&st_during);
+    printf("  [Child] used_bytes=%d, used_blocks=%d\n", 
+           (int)st_during.used_bytes, (int)st_during.used_blocks);
+    
+    printf("  [Child] Exiting without freeing...\n");
+    exit(0);
+  } else {
+    // Parent process
+    wait(0);
+    
+    kmstat(&st_after);
+    printf("  [After Child Exit] used_bytes=%d, used_blocks=%d\n", 
+           (int)st_after.used_bytes, (int)st_after.used_blocks);
+    
+    if (st_after.used_bytes == st_before.used_bytes && 
+        st_after.used_blocks == st_before.used_blocks) {
+      printf("  [Success] Memory reclamation verified! All child memory reclaimed.\n");
+    } else {
+      printf("  [Fail] Memory leak detected! Child memory was not reclaimed.\n");
+    }
+  }
+}
+
+static void
+run_safety_test(void)
+{
+  printf("\n=== Test Safety Checks (Expected Warning Messages below) ===\n");
+  
+  // 1. Invalid pointer (out of bounds)
+  printf("  Test invalid pointer (out of bounds): kmfree((void*)0x10000)\n");
+  kmfree(0x10000);
+  
+  // 2. Unaligned pointer
+  uint64 p = kmalloc(32);
+  if (p) {
+    printf("  Test unaligned pointer: kmfree((void*)(p + 5))\n");
+    kmfree(p + 5);
+    
+    // 3. Double free
+    printf("  Test double free: kmfree((void*)p) followed by kmfree((void*)p)\n");
+    kmfree(p);
+    kmfree(p);
+  }
+  printf("  Safety checks test done.\n");
+}
+
 int
 main(void)
 {
   for (int p = KM_FIRST_FIT; p <= KM_WORST_FIT; p++)
     run_policy(p);
+
+  run_reclaim_test();
+  run_safety_test();
 
   printf("\nkmtest done\n");
   exit(0);

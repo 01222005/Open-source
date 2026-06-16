@@ -68,6 +68,7 @@ void*           kmalloc(uint64);
 void            kmfree(void *);
 int             kmsetpolicy(int);
 void            kmgetstat(struct kmstat *);
+void            kmfree_all_proc(int);
 
 // log.c
 void            initlog(int, struct superblock*);

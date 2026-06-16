@@ -12,6 +12,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "riscv.h"
+#include "proc.h"
 #include "defs.h"
 #include "kmalloc.h"
 
@@ -21,6 +22,7 @@
 struct kmblock {
   uint64 size;          // usable payload size, not including this header
   int free;
+  int pid;              // owner PID, 0 if kernel/free
   struct kmblock *next; // next block by address, 0 if last
   struct kmblock *prev; // previous block by address, 0 if first
 };
@@ -45,6 +47,7 @@ kmallocinit(void)
   struct kmblock *b = (struct kmblock *)km_heap;
   b->size = KM_HEAP_SIZE - KMHDR;
   b->free = 1;
+  b->pid = 0;
   b->next = 0;
   b->prev = 0;
 
@@ -106,6 +109,7 @@ kmalloc(uint64 nbytes)
     struct kmblock *nb = (struct kmblock *)((char *)b + KMHDR + nbytes);
     nb->size = b->size - nbytes - KMHDR;
     nb->free = 1;
+    nb->pid = 0;
     nb->next = b->next;
     nb->prev = b;
     if (nb->next)
@@ -115,6 +119,12 @@ kmalloc(uint64 nbytes)
   }
 
   b->free = 0;
+  struct proc *p = myproc();
+  if (p) {
+    b->pid = p->pid;
+  } else {
+    b->pid = 0;
+  }
   release(&km.lock);
 
   return (void *)((char *)b + KMHDR);
@@ -129,7 +139,28 @@ kmfree(void *ptr)
   struct kmblock *b = (struct kmblock *)((char *)ptr - KMHDR);
 
   acquire(&km.lock);
+
+  // Safety checks
+  if ((char *)b < km_heap || (char *)b >= km_heap + KM_HEAP_SIZE) {
+    printk("kmfree: pointer %p out of heap bounds\n", ptr);
+    release(&km.lock);
+    return;
+  }
+
+  if (((uint64)b - (uint64)km_heap) % KM_ALIGN != 0) {
+    printk("kmfree: pointer %p is not aligned\n", ptr);
+    release(&km.lock);
+    return;
+  }
+
+  if (b->free) {
+    printk("kmfree: double free for pointer %p\n", ptr);
+    release(&km.lock);
+    return;
+  }
+
   b->free = 1;
+  b->pid = 0;
 
   // Coalesce with the following block first so that, if both
   // neighbours are free, b absorbs next and then prev absorbs b.
@@ -188,4 +219,42 @@ kmgetstat(struct kmstat *st)
   release(&km.lock);
 
   *st = s;
+}
+
+void
+kmfree_all_proc(int pid)
+{
+  if (pid <= 0)
+    return;
+
+  acquire(&km.lock);
+  struct kmblock *b = km.head;
+  while (b) {
+    if (!b->free && b->pid == pid) {
+      b->free = 1;
+      b->pid = 0;
+
+      // Coalesce with next
+      if (b->next && b->next->free) {
+        struct kmblock *n = b->next;
+        b->size += KMHDR + n->size;
+        b->next = n->next;
+        if (b->next)
+          b->next->prev = b;
+      }
+      // Coalesce with prev
+      if (b->prev && b->prev->free) {
+        struct kmblock *p = b->prev;
+        p->size += KMHDR + b->size;
+        p->next = b->next;
+        if (p->next)
+          p->next->prev = p;
+        
+        // Since b was merged into p, continue scanning from p
+        b = p;
+      }
+    }
+    b = b->next;
+  }
+  release(&km.lock);
 }
