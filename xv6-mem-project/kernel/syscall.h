@@ -24,3 +24,4 @@
 #define SYS_kmfree     23
 #define SYS_kmpolicy   24
 #define SYS_kmstat     25
+#define SYS_kmtest_perf 26

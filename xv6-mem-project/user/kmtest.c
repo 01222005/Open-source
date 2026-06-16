@@ -15,7 +15,7 @@
 #include "user/user.h"
 
 #define NPTRS 64
-#define NCYCLES 50000
+#define NCYCLES 5000000
 
 static unsigned int rngstate;
 
@@ -68,15 +68,9 @@ run_policy(int policy)
   kmstat(&st);
   printstat("after freeing every other block", &st);
 
-  // Phase 3: many alloc/free cycles, measure elapsed ticks.
-  t0 = uptime();
-  for (i = 0; i < NCYCLES; i++) {
-    uint64 p = kmalloc(64 + (rnd() % 256));
-    if (p)
-      kmfree(p);
-  }
-  t1 = uptime();
-  printf("  %d alloc/free cycles took %d ticks\n", NCYCLES, t1 - t0);
+  // Phase 3: many alloc/free cycles completely in kernel space.
+  int elapsed = kmtest_perf(NCYCLES);
+  printf("  %d alloc/free cycles (pure kernel) took %d ticks\n", NCYCLES, elapsed);
 
   // Cleanup remaining allocations.
   for (i = 1; i < NPTRS; i += 2) {

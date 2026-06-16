@@ -159,3 +159,37 @@ sys_kmstat(void)
     return -1;
   return 0;
 }
+
+// Perform N cycles of memory allocation/deallocation completely within kernel space
+// to avoid user/kernel context switch overhead. Returns the elapsed ticks.
+uint64
+sys_kmtest_perf(void)
+{
+  int ncycles;
+  uint ticks0, ticks1;
+  
+  argint(0, &ncycles);
+  if (ncycles <= 0)
+    return 0;
+
+  acquire(&tickslock);
+  ticks0 = ticks;
+  release(&tickslock);
+
+  // Use a simple pseudo-random generator state
+  unsigned int rngstate = 12345;
+
+  for (int i = 0; i < ncycles; i++) {
+    rngstate = rngstate * 1103515245 + 12345;
+    int sz = 64 + (((rngstate >> 16) & 0x7fff) % 256);
+    void *p = kmalloc(sz);
+    if (p)
+      kmfree(p);
+  }
+
+  acquire(&tickslock);
+  ticks1 = ticks;
+  release(&tickslock);
+
+  return ticks1 - ticks0;
+}

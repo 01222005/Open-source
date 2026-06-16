@@ -106,6 +106,7 @@ extern uint64 sys_kmalloc(void);
 extern uint64 sys_kmfree(void);
 extern uint64 sys_kmpolicy(void);
 extern uint64 sys_kmstat(void);
+extern uint64 sys_kmtest_perf(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -136,6 +137,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_kmfree]   sys_kmfree,
   [SYS_kmpolicy] sys_kmpolicy,
   [SYS_kmstat]   sys_kmstat,
+  [SYS_kmtest_perf] sys_kmtest_perf,
   // clang-format on
 };
 

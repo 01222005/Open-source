@@ -30,6 +30,7 @@ uint64 kmalloc(int);
 int kmfree(uint64);
 int kmpolicy(int);
 int kmstat(struct kmstat *);
+int kmtest_perf(int);
 
 // ulib.c
 int stat(const char *, struct stat *);

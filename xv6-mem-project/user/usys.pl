@@ -46,3 +46,4 @@ entry("kmalloc");
 entry("kmfree");
 entry("kmpolicy");
 entry("kmstat");
+entry("kmtest_perf");
